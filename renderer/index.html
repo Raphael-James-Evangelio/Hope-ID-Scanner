@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'" />
+  <title>HOPE ID Scanner</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="launcher">
+    <div class="logo"><img src="assets/logo.png" alt="HOPE" /></div>
+    <div style="text-align:center">
+      <h1 id="school-title">HOPE ID SCANNER</h1>
+      <div class="tagline">RFID-based student gate pass system &mdash; register cards and verify exit schedules in real time.</div>
+    </div>
+
+    <div class="actions">
+      <div class="action-card scan" id="btn-open-scanner">
+        <div class="action-icon">GO</div>
+        <h3>Scanner / Display</h3>
+        <p>Kiosk screen. Tap a registered card to instantly see whether the student is allowed to go out.</p>
+      </div>
+      <div class="action-card reg" id="btn-open-register">
+        <div class="action-icon">+</div>
+        <h3>Manage Students</h3>
+        <p>Register students by tapping their card, set allowed time windows per day, and review scan logs.</p>
+      </div>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat"><b id="s-students">0</b><span>Registered</span></div>
+      <div class="stat"><b id="s-scans">0</b><span>Scans Today</span></div>
+      <div class="stat"><b id="s-ok" style="color:var(--ok)">0</b><span>Allowed</span></div>
+      <div class="stat"><b id="s-no" style="color:var(--deny)">0</b><span>Denied</span></div>
+    </div>
+
+    <div class="update-banner hidden" id="update-banner">
+      <div class="update-info">
+        <div class="update-title" id="update-title">A new update is available</div>
+        <div class="update-sub" id="update-sub">Version <span id="update-version">?</span> is available.</div>
+      </div>
+      <div class="update-actions">
+        <div class="progress hidden" id="update-progress"><div class="progress-bar" id="update-progress-bar"></div></div>
+        <button class="btn primary small" id="btn-update-download">Download</button>
+        <button class="btn primary small hidden" id="btn-update-restart">Restart &amp; Install</button>
+      </div>
+    </div>
+
+    <div class="footer-hint">Tip: press F11 in the scanner window for fullscreen kiosk mode &middot; Data is stored locally on this PC</div>
+  </div>
+  <div id="toasts"></div>
+  <script src="index.js"></script>
+</body>
+</html>

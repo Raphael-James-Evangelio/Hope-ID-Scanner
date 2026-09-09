@@ -1,0 +1,10 @@
+node_modules/
+dist/
+access_report/
+*.xlsx
+*.blockmap
+seed/hope-scanner.db
+session-*.md
+.opencode/
+build/*
+!build/icon.ico

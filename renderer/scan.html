@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:" />
+  <title>Scanner - HOPE ID Scanner</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="scan-layout">
+    <section class="scan-main">
+      <header class="scan-header">
+        <div class="brand-wrap">
+          <img class="brand-logo" src="assets/logo.png" alt="" />
+          <div>
+            <div class="brand" id="school-name">HOPE ID SCANNER</div>
+            <div class="brand-sub">Gate Pass Verification</div>
+          </div>
+        </div>
+        <div class="scan-actions">
+          <button class="btn ghost small" id="btn-theme">White Mode</button>
+          <button class="btn ghost small" id="btn-fs">Toggle Fullscreen (F11)</button>
+        </div>
+      </header>
+
+      <div class="clock">
+        <div id="clock-time">--:--:--</div>
+        <div id="clock-date"></div>
+      </div>
+
+      <div class="status-card idle" id="status-card">
+        <img class="student-photo hidden" id="student-photo" alt="" />
+        <div class="glyph status-idle-glyph-color" id="glyph">TAP</div>
+        <div class="title" id="title">TAP YOUR ID</div>
+        <div class="reason" id="reason">Hold your card near the reader</div>
+        <div class="who">
+          <div class="who-name hidden" id="who-name"></div>
+          <div class="who-meta hidden" id="who-meta"></div>
+        </div>
+        <div class="chips" id="chips"></div>
+      </div>
+
+      <div class="gate-actions">
+        <button class="gbtn period" id="btn-period-am">MORNING</button>
+        <button class="gbtn period" id="btn-period-pm">AFTERNOON</button>
+        <button class="gbtn time-in" id="btn-time-in">TIME IN</button>
+        <button class="gbtn time-out" id="btn-time-out">TIME OUT</button>
+      </div>
+
+      <form class="manual" id="manual-form" autocomplete="off">
+        <input id="manual-uid" placeholder="Manual UID entry (for testing without a reader)" spellcheck="false" />
+      </form>
+    </section>
+
+    <aside class="scan-feed">
+      <h3>Recent Scans</h3>
+      <ul id="feed"><li class="feed-empty">No scans yet today.</li></ul>
+    </aside>
+  </div>
+  <script src="scan.js"></script>
+</body>
+</html>

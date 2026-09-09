@@ -1,0 +1,60 @@
+{
+  "name": "hope-id-scanner",
+  "version": "1.0.0",
+  "description": "RFID student gate-pass scanner with registration and kiosk display modules",
+  "main": "main.js",
+  "author": "HOPE",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "refresh-seed": "node scripts/refresh-seed.js",
+    "dist": "npm run refresh-seed && electron-builder --win",
+    "dist:publish": "npm run refresh-seed && electron-builder --win --publish always"
+  },
+  "build": {
+    "appId": "com.hope.idscanner",
+    "productName": "HOPE ID Scanner",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "renderer/**/*",
+      "seed/**/*",
+      "scripts/**/*",
+      "build/icon.ico"
+    ],
+    "artifactName": "${productName}-Setup-${version}.${ext}",
+    "publish": {
+      "provider": "github",
+      "owner": "Raphael-James-Evangelio",
+      "repo": "Hope-ID-Scanner"
+    },
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "HOPE ID Scanner"
+    }
+  },
+  "devDependencies": {
+    "electron": "^38.8.6",
+    "electron-builder": "^26.15.3"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
+  }
+}
