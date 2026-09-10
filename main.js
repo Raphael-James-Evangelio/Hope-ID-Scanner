@@ -114,7 +114,7 @@ function registerIpc() {
     const { rows } = db.logsQuery(filters || {})
     const { canceled, filePath } = await dialog.showSaveDialog(BrowserWindow.fromWebContents(e.sender), {
       title: 'Export scan logs',
-      defaultPath: `hope-scan-logs-${new Date().toISOString().slice(0, 10)}.xlsx`,
+      defaultPath: `hope-scan-logs-${filters.from || ''}${filters.from && filters.to ? '-to-' : ''}${filters.to || (!filters.from ? new Date().toISOString().slice(0, 10) : '')}.xlsx`,
       filters: [{ name: 'Excel Workbook', extensions: ['xlsx'] }]
     })
     if (canceled || !filePath) return null
