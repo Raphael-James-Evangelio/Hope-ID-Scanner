@@ -116,7 +116,7 @@ function resetForm() {
 function fillForm(st) {
   editingId = st.id
   $('#form-title').textContent = `Edit ${personTypeLabel(st.person_type || 'student')} #${st.id}`
-  $('#f-uid').value = st.uid
+  $('#f-uid').value = st.uid || ''
   $('#f-name').value = st.name
   $('#f-number').value = st.student_number || ''
   $('#f-section').value = st.course_section || ''
@@ -147,7 +147,7 @@ async function refresh() {
 
     const tdUid = document.createElement('td')
     tdUid.className = 'mono'
-    tdUid.textContent = st.uid
+    tdUid.textContent = st.uid || ''
 
     const tdName = document.createElement('td')
     tdName.className = 'name-cell'

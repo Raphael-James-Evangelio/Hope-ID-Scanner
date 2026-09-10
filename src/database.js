@@ -30,7 +30,7 @@ function init() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS students (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      uid TEXT NOT NULL UNIQUE,
+      uid TEXT UNIQUE,
       student_number TEXT UNIQUE,
       name TEXT NOT NULL,
       course_section TEXT NOT NULL DEFAULT '',
