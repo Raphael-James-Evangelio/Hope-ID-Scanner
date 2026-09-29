@@ -2,11 +2,15 @@ const $ = s => document.querySelector(s)
 const $$ = s => [...document.querySelectorAll(s)]
 
 const GRADES = ['Nursery', 'Pre-Kinder', 'Kinder', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12']
+const TIME_FIELDS = ['amIn', 'amOut', 'pmIn', 'pmOut']
+const SCHOOL_DAYS = [1, 2, 3, 4, 5]
+const DAY_SHORT = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 let editingId = null
 let captureMode = false
 let currentPhoto = ''
-let dismissalSchedule = {}
+let attendanceSchedule = {}
+let selectedDay = 'base'
 
 function toast(msg, type = 'info', ms = 3200) {
   const el = document.createElement('div')
@@ -482,22 +486,89 @@ $('#lf-clear').addEventListener('click', () => {
 
 $('#btn-save-settings').addEventListener('click', async () => {
   const schedule = {}
-  for (const row of document.querySelectorAll('#dismissal-schedule-box .sched-row')) {
-    const grade = row.dataset.grade
-    const time = row.querySelector('.sched-time').value
-    if (grade && time) schedule[grade] = time
+  for (const grade of GRADES) {
+    const entry = {}
+
+    const base = readRow(grade, 'base')
+    if (base) entry.base = base
+
+    const days = {}
+    for (const dow of SCHOOL_DAYS) {
+      const day = readRow(grade, String(dow))
+      if (day) days[String(dow)] = day
+    }
+    if (Object.keys(days).length) entry.days = days
+
+    if (entry.base || entry.days) schedule[grade] = entry
   }
   await hope.settings.set({
     schoolName: $('#s-school').value.trim() || 'HOPE ID SCANNER',
-    dismissalSchedule: JSON.stringify(schedule)
+    attendanceSchedule: JSON.stringify(schedule)
   })
   $('#reg-school').textContent = $('#s-school').value.trim() || 'HOPE ID SCANNER'
-  dismissalSchedule = schedule
+  attendanceSchedule = schedule
+  renderDayTabs()
+  renderAttendanceSchedule()
   toast('Settings saved', 'ok')
 })
 
-function renderDismissalSchedule() {
-  const box = $('#dismissal-schedule-box')
+function readRow(grade, scope) {
+  const row = document.querySelector(`#attendance-schedule-box .sched-row[data-grade="${CSS.escape(grade)}"]`)
+  if (!row) return null
+  const entry = {}
+  for (const field of TIME_FIELDS) {
+    const input = row.querySelector(`.sched-time[data-scope="${scope}"][data-field="${field}"]`)
+    const time = input && input.value.trim()
+    if (time) entry[field] = time
+  }
+  return Object.keys(entry).length ? entry : null
+}
+
+function slotFor(grade, scope) {
+  const entry = attendanceSchedule[grade] || {}
+  if (scope === 'base') return entry.base || {}
+  return (entry.days && entry.days[scope]) || {}
+}
+
+function dayHasOverride(dow) {
+  return GRADES.some(grade => {
+    const entry = attendanceSchedule[grade] || {}
+    return !!(entry.days && entry.days[String(dow)])
+  })
+}
+
+function renderDayTabs() {
+  const box = $('#day-tabs')
+  if (!box) return
+  box.innerHTML = ''
+
+  const tabs = [{ key: 'base', label: 'Every Day' }].concat(
+    SCHOOL_DAYS.map(dow => ({ key: String(dow), label: DAY_SHORT[dow], dot: dayHasOverride(dow) }))
+  )
+
+  for (const tab of tabs) {
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    btn.className = 'day-tab' + (tab.key === selectedDay ? ' active' : '')
+    btn.setAttribute('role', 'tab')
+    btn.dataset.day = tab.key
+    btn.textContent = tab.label
+    if (tab.dot) {
+      const dot = document.createElement('span')
+      dot.className = 'day-dot'
+      btn.appendChild(dot)
+    }
+    btn.addEventListener('click', () => {
+      selectedDay = tab.key
+      renderDayTabs()
+      renderAttendanceSchedule()
+    })
+    box.appendChild(btn)
+  }
+}
+
+function renderAttendanceSchedule() {
+  const box = $('#attendance-schedule-box')
   if (!box) return
   box.innerHTML = ''
   for (const grade of GRADES) {
@@ -509,13 +580,21 @@ function renderDismissalSchedule() {
     label.className = 'sched-label'
     label.textContent = grade
 
-    const timeInput = document.createElement('input')
-    timeInput.type = 'time'
-    timeInput.className = 'sched-time'
-    timeInput.value = dismissalSchedule[grade] || ''
-    timeInput.placeholder = '--:--'
+    row.appendChild(label)
 
-    row.append(label, timeInput)
+    const saved = slotFor(grade, selectedDay)
+    for (const field of TIME_FIELDS) {
+      const timeInput = document.createElement('input')
+      timeInput.type = 'time'
+      timeInput.className = 'sched-time'
+      timeInput.dataset.scope = selectedDay
+      timeInput.dataset.field = field
+      timeInput.value = saved[field] || ''
+      timeInput.placeholder = '--:--'
+      timeInput.title = `${grade} · ${selectedDay === 'base' ? 'Every Day' : DAY_SHORT[selectedDay]}`
+      row.appendChild(timeInput)
+    }
+
     box.appendChild(row)
   }
 }
@@ -525,11 +604,13 @@ function loadSettings() {
     $('#reg-school').textContent = s.schoolName || 'HOPE ID SCANNER'
     $('#s-school').value = s.schoolName || ''
     try {
-      dismissalSchedule = JSON.parse(s.dismissalSchedule || '{}')
+      attendanceSchedule = JSON.parse(s.attendanceSchedule || '{}')
     } catch (_) {
-      dismissalSchedule = {}
+      attendanceSchedule = {}
     }
-    renderDismissalSchedule()
+    if (selectedDay !== 'base' && !SCHOOL_DAYS.includes(Number(selectedDay))) selectedDay = 'base'
+    renderDayTabs()
+    renderAttendanceSchedule()
   })
 }
 

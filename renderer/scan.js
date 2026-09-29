@@ -133,8 +133,31 @@ function setStatus(cls, title, reason, data = {}) {
       dismissChip.className = 'chip' + (data.student.dismissal_allowed ? ' active-now' : '')
       dismissChip.textContent = data.student.dismissal_allowed ? 'Dismissal: Allowed' : 'Dismissal: Not Allowed'
       chips.appendChild(dismissChip)
+
+      const timeChip = document.createElement('span')
+      const label = timesChipLabel(data.times, mode, period)
+      if (label) {
+        timeChip.className = 'chip'
+        timeChip.textContent = label
+        chips.appendChild(timeChip)
+      }
     }
   }
+}
+
+function fmt12(hm) {
+  const [h, m] = String(hm).split(':').map(Number)
+  const ap = h >= 12 ? 'PM' : 'AM'
+  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${ap}`
+}
+
+function timesChipLabel(times, mode, period) {
+  if (!times) return ''
+  const grade = times.grade || ''
+  const slot = mode === 'in' ? (period === 'am' ? times.amIn : times.pmIn) : (period === 'am' ? times.amOut : times.pmOut)
+  const day = times.dayName ? `${times.dayName} ` : ''
+  if (!slot) return grade ? `${grade} · no ${mode === 'in' ? 'time in' : 'time out'} set` : ''
+  return grade ? `${grade} · ${day}${fmt12(slot)}` : `${day}${fmt12(slot)}`
 }
 
 function feed(res) {

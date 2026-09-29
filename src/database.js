@@ -12,6 +12,11 @@ const LUNCH_END = '13:00'
 const GRADES = ['Nursery', 'Pre-Kinder', 'Kinder', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12']
 const PERSON_TYPES = ['student', 'visitor', 'coach', 'employee', 'zion']
 
+const TIME_FIELDS = ['amIn', 'amOut', 'pmIn', 'pmOut']
+const DEFAULT_TIMES = { amIn: '07:00', amOut: LUNCH_START, pmIn: LUNCH_END, pmOut: '' }
+const SCHOOL_DAYS = [1, 2, 3, 4, 5]
+const DAY_NAMES_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
 function seedDbIfMissing() {
   const dbPath = path.join(app.getPath('userData'), 'hope-scanner.db')
   if (fs.existsSync(dbPath)) return
@@ -65,6 +70,7 @@ function init() {
     )
   `)
   db.prepare("INSERT OR IGNORE INTO settings(key, value) VALUES ('schoolName', 'HOPE ID SCANNER')").run()
+  migrateSettings()
 
   try { db.exec("ALTER TABLE students ADD COLUMN photo TEXT NOT NULL DEFAULT ''") } catch (_) {}
   try { db.exec("ALTER TABLE students ADD COLUMN person_type TEXT NOT NULL DEFAULT 'student'") } catch (_) {}
@@ -89,17 +95,116 @@ function inRange(t, a, b) {
   return t >= a || t < b
 }
 
-function dismissalSchedule() {
-  let raw
+function readSetting(key) {
   try {
-    raw = db.prepare("SELECT value FROM settings WHERE key = 'dismissalSchedule'").get()
-  } catch (_) {}
-  if (!raw || !raw.value) return {}
+    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key)
+    return row && row.value ? row.value : ''
+  } catch (_) {
+    return ''
+  }
+}
+
+function readJsonSetting(key) {
+  const raw = readSetting(key)
+  if (!raw) return {}
   try {
-    return JSON.parse(raw.value)
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
   } catch (_) {
     return {}
   }
+}
+
+function pickTimeFields(src) {
+  if (!src || typeof src !== 'object') return null
+  const row = {}
+  let any = false
+  for (const f of TIME_FIELDS) {
+    const v = String(src[f] || '').trim()
+    if (TIME_RE.test(v)) {
+      row[f] = v
+      any = true
+    }
+  }
+  return any ? row : null
+}
+
+function normalizeTimes(raw) {
+  const out = {}
+  for (const grade of GRADES) {
+    const src = raw && raw[grade]
+    if (!src || typeof src !== 'object') continue
+
+    const entry = {}
+    const base = pickTimeFields(src.base)
+    if (base) entry.base = base
+
+    if (src.days && typeof src.days === 'object') {
+      const days = {}
+      let anyDay = false
+      for (const key of Object.keys(src.days)) {
+        const dow = Number(key)
+        if (!SCHOOL_DAYS.includes(dow)) continue
+        const d = src.days[key]
+        if (!d || typeof d !== 'object') continue
+        const row = pickTimeFields(d)
+        if (row) {
+          days[String(dow)] = row
+          anyDay = true
+        }
+      }
+      if (anyDay) entry.days = days
+    }
+
+    if (entry.base || entry.days) out[grade] = entry
+  }
+  return out
+}
+
+function attendanceSchedule() {
+  return normalizeTimes(readJsonSetting('attendanceSchedule'))
+}
+
+function writeSchedule(obj) {
+  try {
+    db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
+      .run('attendanceSchedule', JSON.stringify(obj))
+  } catch (_) {}
+}
+
+function migrateSettings() {
+  const current = readJsonSetting('attendanceSchedule')
+
+  if (Object.keys(current).length) {
+    // v1 stored the four times flat on the grade. Move them under "base" so
+    // existing settings survive the switch to per-day schedules.
+    const upgraded = {}
+    let changed = false
+    for (const grade of GRADES) {
+      const src = current[grade]
+      if (!src || typeof src !== 'object') continue
+      const entry = {}
+      const nested = pickTimeFields(src.base)
+      const flat = pickTimeFields(src)
+      const base = nested || flat
+      if (base) entry.base = base
+      if (!nested && flat) changed = true
+      if (src.days && typeof src.days === 'object') entry.days = src.days
+      if (entry.base || entry.days) upgraded[grade] = entry
+    }
+    if (changed) writeSchedule(upgraded)
+    return
+  }
+
+  // v0 had dismissal times only.
+  const legacy = readJsonSetting('dismissalSchedule')
+  const seeded = {}
+  for (const grade of GRADES) {
+    const dt = String(legacy[grade] || '').trim()
+    if (!TIME_RE.test(dt)) continue
+    seeded[grade] = { base: { ...DEFAULT_TIMES, pmOut: dt } }
+  }
+  writeSchedule(seeded)
 }
 
 function friendlyError(e) {
@@ -328,19 +433,48 @@ function fmtTime12(hm) {
   return `${h}:${String(m).padStart(2, '0')} ${ap}`
 }
 
-function dismissalTimeFor(courseSection) {
-  const schedule = dismissalSchedule()
+function attendanceFor(courseSection, dayOfWeek) {
+  const schedule = attendanceSchedule()
   const section = String(courseSection || '').trim()
-  return schedule[section] || null
+  const entry = schedule[section] || {}
+  const base = entry.base || {}
+  const dow = Number(dayOfWeek)
+
+  let resolved = base
+  let source = 'base'
+  if (SCHOOL_DAYS.includes(dow) && entry.days && entry.days[String(dow)]) {
+    resolved = Object.assign({}, base, entry.days[String(dow)])
+    source = 'day'
+  }
+
+  const out = {
+    grade: section,
+    amIn: resolved.amIn || '',
+    amOut: resolved.amOut || '',
+    pmIn: resolved.pmIn || '',
+    pmOut: resolved.pmOut || ''
+  }
+  if (source === 'day') {
+    out.day = dow
+    out.dayName = DAY_NAMES_SHORT[dow]
+  }
+  return out
 }
 
 function gradeFromSection(courseSection) {
   const section = String(courseSection || '').trim()
   if (GRADES.includes(section)) return section
+  let best = ''
   for (const g of GRADES) {
-    if (section.startsWith(g)) return g
+    if (section.startsWith(g) && g.length > best.length) best = g
   }
-  return section
+  return best || section
+}
+
+function gradeLabel(times) {
+  const g = times && times.grade
+  const name = g ? g : 'This student'
+  return times && times.dayName ? `${name} (${times.dayName})` : name
 }
 
 function evaluateAndLog(raw, period = 'am') {
@@ -369,10 +503,11 @@ function evaluateAndLog(raw, period = 'am') {
   }
 
   const student = pub(st)
+  const times = attendanceFor(gradeFromSection(st.course_section), dow)
 
   if (!st.active) {
     addLog(uid, st.id, st.name, 'INACTIVE', 'Card deactivated')
-    return { ...base, status: 'inactive', title: 'CARD DEACTIVATED', reason: 'Please contact the registrar office', student }
+    return { ...base, status: 'inactive', title: 'CARD DEACTIVATED', reason: 'Please contact the registrar office', student, times }
   }
 
   const personType = st.person_type || 'student'
@@ -381,23 +516,23 @@ function evaluateAndLog(raw, period = 'am') {
     const label = personType === 'coach' ? 'Coach' : 'Visitor'
     const timeoutDetail = `Time out (${pl})`
     addLog(uid, st.id, st.name, 'ALLOWED', timeoutDetail)
-    return { ...base, status: 'allowed', title: 'ALLOWED TO GO OUT', reason: `${label} · always allowed (${pl} time out)`, student }
+    return { ...base, status: 'allowed', title: 'ALLOWED TO GO OUT', reason: `${label} · always allowed (${pl} time out)`, student, times }
   }
 
   if (alreadyTimeOutToday(uid, period)) {
-    return { ...base, status: 'already', title: 'ALREADY SCANNED', reason: `${pl} time out already recorded`, student }
+    return { ...base, status: 'already', title: 'ALREADY SCANNED', reason: `${pl} time out already recorded`, student, times }
   }
 
   const timeoutDetail = `Time out (${pl})`
 
   if (st.all_day_access) {
     addLog(uid, st.id, st.name, 'ALLOWED', timeoutDetail)
-    return { ...base, status: 'allowed', title: 'ALLOWED TO GO OUT', reason: `All-day access (${pl} time out)`, student }
+    return { ...base, status: 'allowed', title: 'ALLOWED TO GO OUT', reason: `All-day access (${pl} time out)`, student, times }
   }
 
-  const lunchStart = toMinutes(LUNCH_START)
-  const lunchEnd = toMinutes(LUNCH_END)
-  const inLunch = inRange(mins, lunchStart, lunchEnd)
+  const lunchStartHM = times.amOut || DEFAULT_TIMES.amOut
+  const lunchEndHM = times.pmIn || DEFAULT_TIMES.pmIn
+  const inLunch = inRange(mins, toMinutes(lunchStartHM), toMinutes(lunchEndHM))
 
   if (period === 'am') {
     const inLunchBreak = !!st.lunch_break_access && inLunch
@@ -405,44 +540,38 @@ function evaluateAndLog(raw, period = 'am') {
     if (inLunchBreak) {
       if (st.waiting_area) {
         addLog(uid, st.id, st.name, 'ALLOWED', timeoutDetail)
-        const reason = `Waiting area only · lunch ${fmtTime12(LUNCH_START)}–${fmtTime12(LUNCH_END)} (${pl} time out)`
-        return { ...base, status: 'allowed_waiting', title: 'WAITING AREA ONLY', reason, student }
+        const reason = `Waiting area only · lunch ${fmtTime12(lunchStartHM)}–${fmtTime12(lunchEndHM)} (${pl} time out)`
+        return { ...base, status: 'allowed_waiting', title: 'WAITING AREA ONLY', reason, student, times }
       }
       addLog(uid, st.id, st.name, 'ALLOWED', timeoutDetail)
-      const reason = `Within lunch break ${fmtTime12(LUNCH_START)}–${fmtTime12(LUNCH_END)} (${pl} time out)`
-      return { ...base, status: 'allowed', title: 'ALLOWED TO GO OUT', reason, student }
+      const reason = `Within lunch break ${fmtTime12(lunchStartHM)}–${fmtTime12(lunchEndHM)} (${pl} time out)`
+      return { ...base, status: 'allowed', title: 'ALLOWED TO GO OUT', reason, student, times }
     }
 
     let reason = 'Not allowed to go out'
-    if (!inLunch) reason = `Not allowed · outside lunch break (${pl} time out is only during lunch ${fmtTime12(LUNCH_START)}–${fmtTime12(LUNCH_END)})`
+    if (mins < toMinutes(lunchStartHM)) reason = `Not allowed · ${gradeLabel(times)} lunch starts at ${fmtTime12(lunchStartHM)} (${pl} time out)`
+    else if (mins >= toMinutes(lunchEndHM)) reason = `Not allowed · ${gradeLabel(times)} lunch ended at ${fmtTime12(lunchEndHM)}`
     else if (!st.lunch_break_access) reason = `Not allowed · lunch break not permitted`
-    else reason = `Not allowed · lunch break ends at ${fmtTime12(LUNCH_END)}`
 
     addLog(uid, st.id, st.name, 'DENIED', timeoutDetail + ' · ' + reason)
-    return { ...base, status: 'denied', title: 'NOT ALLOWED', reason, student }
+    return { ...base, status: 'denied', title: 'NOT ALLOWED', reason, student, times }
   } else {
-    let afterDismissal = false
-    let dismissalTime = null
-    const grade = gradeFromSection(st.course_section)
-    const dt = dismissalTimeFor(grade)
-    if (dt) {
-      dismissalTime = dt
-      afterDismissal = mins >= toMinutes(dt)
-    }
+    const dismissalTime = times.pmOut || null
+    const afterDismissal = !!dismissalTime && mins >= toMinutes(dismissalTime)
 
     if (afterDismissal && st.dismissal_allowed) {
       addLog(uid, st.id, st.name, 'ALLOWED', timeoutDetail)
       const reason = `After dismissal (${fmtTime12(dismissalTime)}) (${pl} time out)`
-      return { ...base, status: 'allowed', title: 'ALLOWED TO GO OUT', reason, student }
+      return { ...base, status: 'allowed', title: 'ALLOWED TO GO OUT', reason, student, times }
     }
 
     let reason = 'Not allowed to go out'
     if (!st.dismissal_allowed) reason = 'Not allowed · dismissal not permitted'
-    else if (dismissalTime) reason = `Not allowed · dismissal at ${fmtTime12(dismissalTime)}`
-    else reason = 'Not allowed · dismissal time not configured'
+    else if (!dismissalTime) reason = `Not allowed · ${gradeLabel(times)} dismissal time not configured`
+    else if (mins < toMinutes(dismissalTime)) reason = `Not allowed · ${gradeLabel(times)} dismissal at ${fmtTime12(dismissalTime)}`
 
     addLog(uid, st.id, st.name, 'DENIED', timeoutDetail + ' · ' + reason)
-    return { ...base, status: 'denied', title: 'NOT ALLOWED', reason, student }
+    return { ...base, status: 'denied', title: 'NOT ALLOWED', reason, student, times }
   }
 }
 
@@ -451,11 +580,13 @@ function evaluateIn(raw, period = 'am') {
   const now = new Date()
   const pad = n => String(n).padStart(2, '0')
   const nowFull = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`
+  const mins = now.getHours() * 60 + now.getMinutes()
+  const dow = now.getDay()
   const pl = periodLabel(period)
   const base = {
     uid,
     now: nowFull,
-    dayName: DAY_NAMES[now.getDay()],
+    dayName: DAY_NAMES[dow],
     date: now.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
   }
 
@@ -468,25 +599,42 @@ function evaluateIn(raw, period = 'am') {
     return { ...base, status: 'unknown', title: 'CARD NOT RECOGNIZED', reason: 'This card is not registered' }
   }
 
+  const student = pub(st)
+  const times = attendanceFor(gradeFromSection(st.course_section), dow)
+
   if (!st.active) {
     addLog(uid, st.id, st.name, 'INACTIVE', 'Card deactivated')
-    return { ...base, status: 'inactive', title: 'CARD DEACTIVATED', reason: 'Please contact the registrar office', student: pub(st) }
+    return { ...base, status: 'inactive', title: 'CARD DEACTIVATED', reason: 'Please contact the registrar office', student, times }
   }
 
   const personType = st.person_type || 'student'
+  const timeInDetail = `Time in (${pl})`
 
   if (personType !== 'student') {
     const label = personType === 'coach' ? 'Coach' : 'Visitor'
-    addLog(uid, st.id, st.name, 'ALLOWED', `Time in (${pl})`)
-    return { ...base, status: 'allowed', title: `${pl} TIME IN`, reason: `${label} · time in recorded`, student: pub(st) }
+    addLog(uid, st.id, st.name, 'ALLOWED', timeInDetail)
+    return { ...base, status: 'allowed', title: `${pl} TIME IN`, reason: `${label} · time in recorded`, student, times }
   }
 
   if (alreadyTimeInToday(uid, period)) {
-    return { ...base, status: 'already', title: 'TIME IN RECORDED', reason: `${pl} time in already recorded`, student: pub(st), slots: [] }
+    return { ...base, status: 'already', title: 'TIME IN RECORDED', reason: `${pl} time in already recorded`, student, times, slots: [] }
   }
 
-  addLog(uid, st.id, st.name, 'ALLOWED', `Time in (${pl})`)
-  return { ...base, status: 'allowed', title: `${pl} TIME IN`, reason: `${pl} time in recorded`, student: pub(st), slots: [] }
+  const gate = period === 'am' ? times.amIn : (times.pmIn || DEFAULT_TIMES.pmIn)
+  if (gate && mins < toMinutes(gate)) {
+    const label = period === 'am' ? 'time in' : 'return from lunch'
+    const reason = `Too early · ${gradeLabel(times)} ${label} at ${fmtTime12(gate)}`
+    addLog(uid, st.id, st.name, 'EARLY', timeInDetail + ' · ' + reason)
+    return { ...base, status: 'early', title: 'TOO EARLY', reason, student, times, slots: [] }
+  }
+
+  if (st.all_day_access) {
+    addLog(uid, st.id, st.name, 'ALLOWED', timeInDetail)
+    return { ...base, status: 'allowed', title: `${pl} TIME IN`, reason: `All-day access (${pl} time in)`, student, times, slots: [] }
+  }
+
+  addLog(uid, st.id, st.name, 'ALLOWED', timeInDetail)
+  return { ...base, status: 'allowed', title: `${pl} TIME IN`, reason: `${pl} time in recorded`, student, times, slots: [] }
 }
 
 function stats() {
@@ -515,9 +663,11 @@ module.exports = {
   evaluateAndLog,
   evaluateIn,
   stats,
-  dismissalSchedule,
-  dismissalTimeFor,
+  attendanceSchedule,
+  attendanceFor,
   gradeFromSection,
   GRADES,
+  SCHOOL_DAYS,
+  DAY_NAMES_SHORT,
   PERSON_TYPES
 }

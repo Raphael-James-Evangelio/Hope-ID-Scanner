@@ -291,19 +291,60 @@ fieldset.access-fieldset legend { font-size: 12px; color: var(--muted); text-tra
 .opt-badge.ok { color: var(--ok); }
 .opt-badge.deny { color: var(--deny); }
 .access-opt:has(input:checked) { border-color: var(--accent); background: rgba(79,124,255,.08); }
-.sched-row {
+.day-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.day-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.day-tab:hover { color: var(--text); border-color: var(--accent); }
+.day-tab.active { color: var(--accent); border-color: var(--accent); background: rgba(79,124,255,.1); }
+.day-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.sched-row,
+.sched-head {
   display: grid;
-  grid-template-columns: 1fr 110px;
+  grid-template-columns: minmax(90px, 1fr) repeat(4, 128px);
   gap: 10px;
   align-items: center;
   padding: 8px 10px;
+}
+.sched-head {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  padding-bottom: 0;
+}
+.sched-head span { text-align: center; }
+.sched-head span:first-child { text-align: left; }
+.sched-row {
   border: 1px solid var(--border);
   border-radius: 10px;
   margin-bottom: 6px;
   background: rgba(255,255,255,.02);
 }
 .sched-label { font-size: 14px; font-weight: 600; }
-.sched-row input[type="time"] { padding: 7px 9px; font-size: 13px; border-radius: 8px; }
+.sched-row input[type="time"] { padding: 7px 9px; font-size: 13px; border-radius: 8px; text-align: center; }
 .slot-row {
   display: grid;
   grid-template-columns: 1fr 92px 92px 34px;
@@ -349,7 +390,7 @@ fieldset.access-fieldset legend { font-size: 12px; color: var(--muted); text-tra
 .log-toolbar .count { color: var(--muted); font-size: 12px; align-self: center; white-space: nowrap; }
 .pager { display: flex; gap: 8px; align-items: center; justify-content: center; padding-top: 12px; border-top: 1px solid var(--border); margin-top: 4px; }
 .pager #lg-info { font-size: 12px; min-width: 90px; text-align: center; }
-.settings-panel { max-width: 620px; overflow-y: auto; min-height: 0; }
+.settings-panel { max-width: 760px; overflow-y: auto; min-height: 0; }
 
 .photo-upload {
   width: 100%;

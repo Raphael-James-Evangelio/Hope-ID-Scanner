@@ -64,7 +64,7 @@
 
           <fieldset class="access-fieldset">
             <legend>Afternoon Lunch Break Time</legend>
-            <p class="access-hint">Allowed window: 11:50 AM &ndash; 1:00 PM</p>
+            <p class="access-hint">Allowed window: the grade&rsquo;s Morning Time Out to Afternoon Time In, set in the Settings tab.</p>
             <div class="access-options">
               <label class="access-opt">
                 <input type="radio" name="lunch_access" id="lunch-allowed" value="1" />
@@ -206,9 +206,17 @@
         </label>
 
         <fieldset class="access-fieldset">
-          <legend>Dismissal Time by Grade Level</legend>
-          <p class="access-hint">Set the dismissal time for each grade level. Students marked "Allowed" for Dismissal Time can leave campus after their grade&rsquo;s dismissal time.</p>
-          <div id="dismissal-schedule-box"></div>
+          <legend>Attendance Times by Grade Level</legend>
+          <p class="access-hint">Set the four attendance times for each grade level. Morning Time Out and Afternoon Time In define that grade&rsquo;s lunch break window. Leave any time blank to fall back to Every Day, then to 11:50 AM &ndash; 1:00 PM. A dot on a day tab means that day has its own times.</p>
+          <div id="day-tabs" class="day-tabs" role="tablist"></div>
+          <div class="sched-head">
+            <span>Grade Level</span>
+            <span>Morning Time In</span>
+            <span>Morning Time Out</span>
+            <span>Afternoon Time In</span>
+            <span>Afternoon Time Out</span>
+          </div>
+          <div id="attendance-schedule-box"></div>
         </fieldset>
 
         <button id="btn-save-settings" class="btn primary">Save Settings</button>
